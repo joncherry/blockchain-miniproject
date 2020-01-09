@@ -1,5 +1,5 @@
 #!/bin/sh
 
-go build ./cmd/blockchainminiproject
+go build -o ./runblockchainminiproject ./cmd/blockchainminiproject
 
-MAX_TRANSACTIONS=3 TIME_LIMIT=1 ./blockchainminiproject
+MAX_TRANSACTIONS=3 TIME_LIMIT=1 ./runblockchainminiproject
