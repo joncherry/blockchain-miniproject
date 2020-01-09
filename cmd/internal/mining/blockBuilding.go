@@ -1,0 +1,466 @@
+package mining
+
+import (
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"math/rand"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/joncherry/blockchain-miniproject/cmd/internal/autograph"
+	"github.com/joncherry/blockchain-miniproject/cmd/internal/dto"
+	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchIndexing"
+)
+
+type PreviousBlockHashRunner struct {
+	mx             *sync.Mutex
+	prevHashString string
+	claimed        bool
+	claimedBy      string
+	blockIDHash    string
+}
+
+func NewPrevBlockHashRunner() *PreviousBlockHashRunner {
+	return &PreviousBlockHashRunner{
+		mx:             &sync.Mutex{},
+		prevHashString: "",
+		claimed:        false,
+		claimedBy:      "",
+		blockIDHash:    "",
+	}
+}
+
+func (r *PreviousBlockHashRunner) GetPrevBlockHash() string {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+	return r.prevHashString
+}
+
+// don't export so that only the file writer can set
+func (r *PreviousBlockHashRunner) setPrevBlockHash(hash string) {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+	r.prevHashString = hash
+}
+
+// GetPrevBlockHashClaimed returns if the previous hash is claimed, which node claimed, and with which block header hash they claimed
+func (r *PreviousBlockHashRunner) GetPrevBlockHashClaimed() (bool, string, string) {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+	return r.claimed, r.claimedBy, r.blockIDHash
+}
+
+// setPrevBlockHashAsUnclaimed set the previous hash to claimed = false for node and block header hash that was claimed earlier
+func (r *PreviousBlockHashRunner) setPrevBlockHashAsUnclaimed(publicKeyStr, proofOfWorkHash string) {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
+	if publicKeyStr != r.claimedBy || proofOfWorkHash != r.blockIDHash {
+		log.Fatalln("don't call setPrevBlockHashAsUnclaimed() with a block that didn't make the claim")
+		return
+	}
+
+	r.claimed = false
+	r.claimedBy = ""
+	r.blockIDHash = ""
+}
+
+// SetPrevBlockHashAsClaimed set the previous hash To claimed, which node claimed, and with which block header hash they claimed
+func (r *PreviousBlockHashRunner) SetPrevBlockHashAsClaimed(publicKeyStr, proofOfWorkHash, prevBlockHash string) error {
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
+	if r.claimed == true {
+		return fmt.Errorf("SetPrevBlockHashAsClaimed() failed because already claimed")
+	}
+	if publicKeyStr == "" {
+		return fmt.Errorf("SetPrevBlockHashAsClaimed() failed because publicKeyStr was empty")
+	}
+	if proofOfWorkHash == "" {
+		return fmt.Errorf("SetPrevBlockHashAsClaimed() failed because proofOfWorkHash was empty")
+	}
+	if prevBlockHash != r.prevHashString {
+		return fmt.Errorf("SetPrevBlockHashAsClaimed() failed because prevBlockHash did not match")
+	}
+	r.claimed = true
+	r.claimedBy = publicKeyStr
+	r.blockIDHash = proofOfWorkHash
+	return nil
+}
+
+// SetPrevBlockHashAsClaimedFromSignRequest will claim the prevBlockHash for 120 seconds.
+// This prevents a node from holding on to the claim forever.
+// With no timeout the origin node could hold the claim forever by requesting a signature,
+// and then never submitting the block for acceptance.
+func (r *PreviousBlockHashRunner) SetPrevBlockHashAsClaimedFromSignRequest(publicKeyStr, proofOfWorkHash, prevBlockHash string) error {
+	err := r.SetPrevBlockHashAsClaimed(publicKeyStr, proofOfWorkHash, prevBlockHash)
+	if err != nil {
+		return err
+	}
+
+	// use a goroutine so that we don't sleep for 120 while handling the sign request endpoint
+	// we could perhaps call this whole function as a goroutine if we did not need to return the error
+	go r.setPrevBlockHashAsUnclaimedFromSignRequest(publicKeyStr, proofOfWorkHash)
+
+	return nil
+}
+
+// setPrevBlockHashAsUnclaimedFromSignRequest runs as a goroutine
+// so that SetPrevBlockHashAsClaimedFromSignRequest() will not cause the /block-sign handler to sleep for 120 seconds
+func (r *PreviousBlockHashRunner) setPrevBlockHashAsUnclaimedFromSignRequest(publicKeyStr, proofOfWorkHash string) {
+	time.Sleep(120 * time.Second)
+
+	r.mx.Lock()
+	defer r.mx.Unlock()
+
+	if publicKeyStr != r.claimedBy || proofOfWorkHash != r.blockIDHash {
+		// setPrevBlockHashAsUnclaimedFromSignRequest doesn't need log.Fatalln()
+		// because the claim can be released when the block is accepted before 120 seconds is up
+		return
+	}
+
+	r.claimed = false
+	r.claimedBy = ""
+	r.blockIDHash = ""
+}
+
+type blockBuilder struct {
+	timerChan            chan struct{}
+	transactionsWaiting  chan []*dto.TransactionSubmission
+	writeChan            chan *dto.BlockRequest
+	prevBlockHashRunner  *PreviousBlockHashRunner
+	searchIndex          *searchIndexing.SearchIndexer
+	maxTransactions      int64
+	timeLimitInMinutes   int64
+	BlockChainOutputPath string
+	privateKey           *rsa.PrivateKey
+	publicKey            *rsa.PublicKey
+}
+
+func NewBlockBuilder(
+	prevBlockHashRunner *PreviousBlockHashRunner,
+	searchIndex *searchIndexing.SearchIndexer,
+	writeChan chan *dto.BlockRequest,
+	maxTransactions,
+	timeLimit int64,
+	blockChainOutputPath string,
+	privateKey *rsa.PrivateKey,
+	publicKey *rsa.PublicKey,
+) *blockBuilder {
+	return &blockBuilder{
+		timerChan:            make(chan struct{}, 1),
+		transactionsWaiting:  make(chan []*dto.TransactionSubmission, 0),
+		writeChan:            writeChan,
+		prevBlockHashRunner:  prevBlockHashRunner,
+		searchIndex:          searchIndex,
+		maxTransactions:      maxTransactions,
+		timeLimitInMinutes:   timeLimit,
+		BlockChainOutputPath: blockChainOutputPath,
+		privateKey:           privateKey,
+		publicKey:            publicKey,
+	}
+}
+
+func (b *blockBuilder) BlockTimer() {
+	timer := time.Tick(time.Duration(b.timeLimitInMinutes) * time.Minute)
+	for range timer {
+		b.timerChan <- struct{}{}
+	}
+}
+
+func (b *blockBuilder) BuildNewTransactionsList(tranChan <-chan *dto.TransactionSubmission) {
+	blockTransactions := make([]*dto.TransactionSubmission, 0)
+	for {
+		select {
+		case transactionSub := <-tranChan:
+			// TODO: figure out how to reset timer when we have max transactions
+			if len(blockTransactions) < int(b.maxTransactions) {
+				blockTransactions = append(blockTransactions, transactionSub)
+			} else {
+				b.transactionsWaiting <- blockTransactions
+				blockTransactions = []*dto.TransactionSubmission{
+					transactionSub,
+				}
+			}
+		case <-b.timerChan:
+			if len(blockTransactions) > 0 {
+				b.transactionsWaiting <- blockTransactions
+				blockTransactions = []*dto.TransactionSubmission{}
+			}
+		}
+	}
+}
+
+func (b *blockBuilder) CreateNewBlocks() {
+	transactionsWaitingLoopCount := 0
+	var err error
+
+TransactionsWaitingLoop:
+	for blockTransactions := range b.transactionsWaiting {
+		// check for negative ballance of new transactions
+		usersBalances := make(map[string]float64)
+
+		for _, transactionForNewBlock := range blockTransactions {
+			if transactionForNewBlock.Submitted.CoinAmount < 0 {
+				transactionForNewBlock.TransactionStatus = dto.StatusDropped
+				transactionForNewBlock.DroppedReason = "CoinAmount is negative"
+				continue
+			}
+			userBalance, foundUserBalance := usersBalances[transactionForNewBlock.Submitted.From]
+			if !foundUserBalance {
+				userBalance, err = b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.From)
+				if err != nil {
+					transactionForNewBlock.TransactionStatus = dto.StatusDropped
+					transactionForNewBlock.DroppedReason = err.Error()
+					continue
+				}
+				usersBalances[transactionForNewBlock.Submitted.From] = userBalance
+			}
+
+			if userBalance-transactionForNewBlock.Submitted.CoinAmount < 0 {
+				transactionForNewBlock.TransactionStatus = dto.StatusDropped
+				transactionForNewBlock.DroppedReason = "Not enough Coin in user balance"
+				continue
+			}
+		}
+
+		// TODO: add last transaction with self award for mining.
+		// Should also verify other nodes are not awarding themselves too much.
+
+		// get blockTransactionsBytes for proof of work
+		blockTransactionsBytes, err := json.Marshal(blockTransactions)
+		if err != nil {
+			log.Fatalln("can't marshal the transactions to create a hash! it's the end of the worrrlllldd!!!! aaaaaaaahhhhhhhhh!!!!", err.Error())
+			return
+		}
+
+		transactionsHash := fmt.Sprintf("%x", sha256.Sum256(blockTransactionsBytes))
+
+		for retry := 0; retry < 10; retry++ {
+			blockHeader := &dto.BlockHeader{
+				PrevBlockHash:    b.prevBlockHashRunner.GetPrevBlockHash(),
+				TransactionsHash: transactionsHash,
+				Time:             strconv.FormatInt(time.Now().Unix(), 10),
+			}
+
+			proofOfWorkHash := b.getProofOfWork(blockHeader)
+
+			block := &dto.BlockRequest{
+				OriginNodePublicKey: string(autograph.PublicKeyToBytes(b.publicKey)),
+				ProofOfWorkHash:     proofOfWorkHash,
+				Header:              blockHeader,
+				Transactions:        blockTransactions,
+			}
+
+			sendOffBlock := b.getSendOffBlock(block)
+
+			// if no other node has sent me a block that adds to the previous hash, claim the previous hash
+			err = b.prevBlockHashRunner.SetPrevBlockHashAsClaimed(string(autograph.PublicKeyToBytes(b.publicKey)), sendOffBlock.Block.ProofOfWorkHash, sendOffBlock.Block.Header.PrevBlockHash)
+			if err != nil {
+				continue
+			}
+
+			// simulate network delay in getting the claim to the other nodes
+			// time.Sleep(20 * time.Second)
+
+			// send out the block with the proof of work we found in hopes that we can claim the previous hash on other nodes quickly enough
+			err = getSignaturesAndDistrubute(sendOffBlock)
+			if err != nil {
+				log.Println("retrying because not a single node accepted, last response:", err.Error())
+				// Not enough other nodes thought that I found Proof of Work first so try again
+				b.prevBlockHashRunner.setPrevBlockHashAsUnclaimed(string(autograph.PublicKeyToBytes(b.publicKey)), sendOffBlock.Block.ProofOfWorkHash)
+				continue
+			}
+
+			// simulate network delay in getting the claim success back from the other nodes
+			// time.Sleep(20 * time.Second)
+
+			// if the other nodes agreed that I found proof of work first write the block to the chain
+			// and release the claim so that I accept blocks from other nodes again
+			b.writeChan <- sendOffBlock.Block
+			break TransactionsWaitingLoop
+		}
+
+		// write dropped block if we fail all retries
+		b.writeDroppedBlock(blockTransactions)
+
+		transactionsWaitingLoopCount++
+	}
+}
+
+func (b *blockBuilder) writeDroppedBlock(blockTransactions []*dto.TransactionSubmission) {
+	for _, droppedTransaction := range blockTransactions {
+		droppedTransaction.TransactionStatus = dto.StatusDropped
+		droppedTransaction.DroppedReason = "exceeded retries and dropped block"
+	}
+
+	blockTransactionsBytes, err := json.Marshal(blockTransactions)
+	if err != nil {
+		log.Fatalln("can't marshal the transactions to create a hash! it's the end of the worrrlllldd!!!! aaaaaaaahhhhhhhhh!!!!", err.Error())
+		return
+	}
+
+	transactionsHash := fmt.Sprintf("%x", sha256.Sum256(blockTransactionsBytes))
+
+	blockHeader := &dto.BlockHeader{
+		PrevBlockHash:    "scrubbed",
+		TransactionsHash: transactionsHash,
+		Time:             strconv.FormatInt(time.Now().Unix(), 10),
+	}
+
+	block := &dto.BlockRequest{
+		OriginNodePublicKey: string(autograph.PublicKeyToBytes(b.publicKey)),
+		ProofOfWorkHash:     dto.StatusDropped,
+		Header:              blockHeader,
+		Transactions:        blockTransactions,
+	}
+
+	b.writeChan <- block
+}
+
+func (b *blockBuilder) getProofOfWork(blockHeader *dto.BlockHeader) string {
+	rand.Seed(time.Now().Unix())
+	nonceCount := 100 + rand.Int63()
+
+	proofOfWorkHash := ""
+	for {
+		nonceCount++
+		blockHeader.Nonce = base64.StdEncoding.EncodeToString([]byte(strconv.FormatInt(nonceCount, 10)))
+
+		blockHeaderBytes, err := json.Marshal(blockHeader)
+		if err != nil {
+			log.Fatalln("can't marshal the block header to create a hash! it's the end of the worrrlllldd!!!! aaaaaaaahhhhhhhhh!!!!", err.Error())
+			return ""
+		}
+
+		proofOfWorkHash = fmt.Sprintf("%x", sha256.Sum256(blockHeaderBytes))
+		if strings.HasPrefix(proofOfWorkHash, "00000") {
+			return proofOfWorkHash
+		}
+	}
+}
+
+func (b *blockBuilder) getSendOffBlock(block *dto.BlockRequest) *dto.NodeSignatures {
+	blockBytes, err := json.Marshal(block)
+	if err != nil {
+		log.Fatalln("can't marshal the block struct to write to file! it's the end of the worrrlllldd!!!! aaaaaaaahhhhhhhhh!!!!", err.Error())
+		return nil
+	}
+
+	signedBlockReq, err := autograph.Sign(b.privateKey, blockBytes)
+	if err != nil {
+		log.Fatalln("Failed to sign block before sending to the other nodes! it's the end of the worrrlllldd!!!! aaaaaaaahhhhhhhhh!!!!", err.Error())
+		return nil
+	}
+
+	sendOffBlock := &dto.NodeSignatures{
+		Block: block,
+		Signatures: []*dto.NodeSignature{
+			&dto.NodeSignature{
+				PublicKey:          string(autograph.PublicKeyToBytes(b.publicKey)),
+				SignedBlockRequest: fmt.Sprintf("%x", signedBlockReq),
+			},
+		},
+	}
+	return sendOffBlock
+}
+
+func (b *blockBuilder) WriteBlocks() {
+	blocksReceived := 0
+	previousBlockHash := ""
+	for blockToWrite := range b.writeChan {
+		blocksReceived++
+
+		if blockToWrite.ProofOfWorkHash != dto.StatusDropped {
+			previousBlockHashFromLock := b.prevBlockHashRunner.GetPrevBlockHash()
+			if (previousBlockHashFromLock != "" && blockToWrite.Header.PrevBlockHash != previousBlockHashFromLock) ||
+				(previousBlockHash != "" && blockToWrite.Header.PrevBlockHash != previousBlockHash) {
+				panic(
+					fmt.Sprintf(
+						"You done Gooofed! Actual previously written block hash: %s, prevBlockHash from lock: %s, trying to write block with prevBlockHash %s in header",
+						previousBlockHash,
+						previousBlockHashFromLock,
+						blockToWrite.Header.PrevBlockHash,
+					),
+				)
+			}
+		} else /* block is dropped */ {
+			for _, droppedTransaction := range blockToWrite.Transactions {
+				if droppedTransaction.TransactionStatus != dto.StatusDropped {
+					panic(fmt.Sprintf("How do we have a dropped block with a non dropped transaction? transactionID: %s", droppedTransaction.ID))
+				}
+			}
+		}
+
+		blockBytes, err := json.Marshal(blockToWrite)
+		if err != nil {
+			log.Fatalln("can't marshal the block struct to write to file! it's the end of the worrrlllldd!!!! aaaaaaaahhhhhhhhh!!!!", err.Error())
+			return
+		}
+
+		fileName := fmt.Sprintf("%x_%d", sha256.Sum256(blockBytes), blocksReceived)
+
+		// save indexes for searching the block chain files
+		for transactionIndex, transaction := range blockToWrite.Transactions {
+			// transaction IDs
+			b.searchIndex.SetTransactionPathByID(transaction.ID, fileName, transactionIndex)
+
+			// keys
+			b.searchIndex.SetTransactionPathsByKeyword(transaction.Submitted.Key, fileName, transactionIndex)
+
+			// users giving coin
+			b.searchIndex.SetTransactionPathsByUserID(transaction.Submitted.From, fileName, transactionIndex)
+
+			// users receiving coin
+			b.searchIndex.SetTransactionPathsByUserID(transaction.Submitted.To, fileName, transactionIndex)
+		}
+
+		err = os.MkdirAll(b.BlockChainOutputPath, 0744)
+		if err != nil {
+			log.Fatalln(err)
+			return
+		}
+
+		err = ioutil.WriteFile(fmt.Sprintf("%s/%s.json", b.BlockChainOutputPath, fileName), blockBytes, 0644)
+		if err != nil {
+			log.Fatalln(err)
+			return
+		}
+
+		if blockToWrite.ProofOfWorkHash != dto.StatusDropped {
+			previousBlockHash = blockToWrite.ProofOfWorkHash
+			b.prevBlockHashRunner.setPrevBlockHash(blockToWrite.ProofOfWorkHash)
+			b.prevBlockHashRunner.setPrevBlockHashAsUnclaimed(blockToWrite.OriginNodePublicKey, blockToWrite.ProofOfWorkHash)
+		}
+	}
+}
+
+// found a handy permissions chart on stack overflow
+/*
+	+-----+---+--------------------------+
+	| rwx | 7 | Read, write and execute  |
+	| rw- | 6 | Read, write              |
+	| r-x | 5 | Read, and execute        |
+	| r-- | 4 | Read,                    |
+	| -wx | 3 | Write and execute        |
+	| -w- | 2 | Write                    |
+	| --x | 1 | Execute                  |
+	| --- | 0 | no permissions           |
+	+------------------------------------+
+
+	+------------+------+-------+
+	| Permission | Octal| Field |
+	+------------+------+-------+
+	| rwx------  | 0700 | User  |
+	| ---rwx---  | 0070 | Group |
+	| ------rwx  | 0007 | Other |
+	+------------+------+-------+
+*/
