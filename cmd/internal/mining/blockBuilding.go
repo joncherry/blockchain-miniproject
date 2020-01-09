@@ -134,6 +134,7 @@ func (r *PreviousBlockHashRunner) setPrevBlockHashAsUnclaimedFromSignRequest(pub
 
 type blockBuilder struct {
 	timerChan            chan struct{}
+	resetTimerChan       chan struct{}
 	transactionsWaiting  chan []*dto.TransactionSubmission
 	writeChan            chan *dto.BlockRequest
 	prevBlockHashRunner  *PreviousBlockHashRunner
@@ -157,6 +158,7 @@ func NewBlockBuilder(
 ) *blockBuilder {
 	return &blockBuilder{
 		timerChan:            make(chan struct{}, 1),
+		resetTimerChan:       make(chan struct{}, 1),
 		transactionsWaiting:  make(chan []*dto.TransactionSubmission, 0),
 		writeChan:            writeChan,
 		prevBlockHashRunner:  prevBlockHashRunner,
@@ -170,9 +172,19 @@ func NewBlockBuilder(
 }
 
 func (b *blockBuilder) BlockTimer() {
-	timer := time.Tick(time.Duration(b.timeLimitInMinutes) * time.Minute)
-	for range timer {
-		b.timerChan <- struct{}{}
+	countDownTimer := b.timeLimitInMinutes * 60
+	timer := time.Tick(time.Second)
+	for {
+		select {
+		case <-b.resetTimerChan:
+			countDownTimer = b.timeLimitInMinutes * 60
+		case <-timer:
+			countDownTimer--
+			if countDownTimer == 0 {
+				countDownTimer = b.timeLimitInMinutes * 60
+				b.timerChan <- struct{}{}
+			}
+		}
 	}
 }
 
@@ -181,10 +193,10 @@ func (b *blockBuilder) BuildNewTransactionsList(tranChan <-chan *dto.Transaction
 	for {
 		select {
 		case transactionSub := <-tranChan:
-			// TODO: figure out how to reset timer when we have max transactions
 			if len(blockTransactions) < int(b.maxTransactions) {
 				blockTransactions = append(blockTransactions, transactionSub)
 			} else {
+				b.resetTimerChan <- struct{}{}
 				b.transactionsWaiting <- blockTransactions
 				blockTransactions = []*dto.TransactionSubmission{
 					transactionSub,
