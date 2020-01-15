@@ -222,26 +222,48 @@ TransactionsWaitingLoop:
 
 		for _, transactionForNewBlock := range blockTransactions {
 			if transactionForNewBlock.Submitted.CoinAmount < 0 {
+				// we should never reach this point
 				transactionForNewBlock.TransactionStatus = dto.StatusDropped
 				transactionForNewBlock.DroppedReason = "CoinAmount is negative"
 				continue
 			}
-			userBalance, foundUserBalance := usersBalances[transactionForNewBlock.Submitted.From]
-			if !foundUserBalance {
-				userBalance, err = b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.From)
+
+			// get the balance for the send user in this current block
+			senderBalance, foundSenderBalance := usersBalances[transactionForNewBlock.Submitted.From]
+			if !foundSenderBalance {
+				// get the balance for the send user from the written blocks
+				senderBalance, err = b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.From)
 				if err != nil {
 					transactionForNewBlock.TransactionStatus = dto.StatusDropped
 					transactionForNewBlock.DroppedReason = err.Error()
 					continue
 				}
-				usersBalances[transactionForNewBlock.Submitted.From] = userBalance
+				usersBalances[transactionForNewBlock.Submitted.From] = senderBalance
 			}
 
-			if userBalance-transactionForNewBlock.Submitted.CoinAmount < 0 {
+			// get the balance for the receive user in this current block
+			receiverBalance, foundReceiverBalance := usersBalances[transactionForNewBlock.Submitted.To]
+			if !foundReceiverBalance {
+				// get the balance for the receive user from the written blocks
+				receiverBalance, err = b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.To)
+				if err != nil {
+					transactionForNewBlock.TransactionStatus = dto.StatusDropped
+					transactionForNewBlock.DroppedReason = err.Error()
+					continue
+				}
+				usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance
+			}
+
+			if senderBalance-transactionForNewBlock.Submitted.CoinAmount < 0 {
 				transactionForNewBlock.TransactionStatus = dto.StatusDropped
 				transactionForNewBlock.DroppedReason = "Not enough Coin in user balance"
 				continue
 			}
+
+			// update the balances map with the new amounts
+			// so that we are ready to check the next transaction in this block
+			usersBalances[transactionForNewBlock.Submitted.From] = senderBalance - transactionForNewBlock.Submitted.CoinAmount
+			usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance + transactionForNewBlock.Submitted.CoinAmount
 		}
 
 		// TODO: add last transaction with self award for mining.

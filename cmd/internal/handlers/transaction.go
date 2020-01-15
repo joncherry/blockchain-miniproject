@@ -68,6 +68,13 @@ func (r *transactionRunner) Transaction(resp http.ResponseWriter, req *http.Requ
 		return
 	}
 
+	// don't allow negative coinAmounts, but 0 coin is fine
+	if transactionSub.Submitted.CoinAmount < 0 {
+		resp.WriteHeader(http.StatusBadRequest)
+		resp.Write([]byte(`{"message":"don't send a negative coin amount"}`))
+		return
+	}
+
 	// get the bytes of the submitted transaction for verifying
 	submittedBytes, err := json.Marshal(transactionSub.Submitted)
 	if err != nil {
