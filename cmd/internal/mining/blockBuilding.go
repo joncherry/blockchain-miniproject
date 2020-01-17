@@ -228,10 +228,8 @@ TransactionsWaitingLoop:
 				continue
 			}
 
-			// get the balance for the send user in this current block
 			senderBalance, foundSenderBalance := usersBalances[transactionForNewBlock.Submitted.From]
 			if !foundSenderBalance {
-				// get the balance for the send user from the written blocks
 				senderBalance, err = b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.From)
 				if err != nil {
 					transactionForNewBlock.TransactionStatus = dto.StatusDropped
@@ -241,10 +239,9 @@ TransactionsWaitingLoop:
 				usersBalances[transactionForNewBlock.Submitted.From] = senderBalance
 			}
 
-			// get the balance for the receive user in this current block
+			// the receiver might be the sender on following transactions
 			receiverBalance, foundReceiverBalance := usersBalances[transactionForNewBlock.Submitted.To]
 			if !foundReceiverBalance {
-				// get the balance for the receive user from the written blocks
 				receiverBalance, err = b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.To)
 				if err != nil {
 					transactionForNewBlock.TransactionStatus = dto.StatusDropped

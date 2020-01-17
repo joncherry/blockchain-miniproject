@@ -5,11 +5,11 @@ package dto
 // Also implement logic for finding the longest verified block chain when rejoining the network
 
 type BranchData struct {
-	Hash1Map       map[string]BranchData `json:"hash1"`
-	Hash2Map       map[string]BranchData `json:"hash2"`
-	Hash1Block     string
-	Hash2Block     string
-	NodeTreeHeight int64 `json:"nodeTreeHeight"`
+	Hash1Map       map[string]BranchData `json:"hash1Branch"`
+	Hash2Map       map[string]BranchData `json:"hash2Branch"`
+	Hash1Block     string                `json:"hash1Block"`
+	Hash2Block     string                `json:"hash2Block"`
+	NodeTreeHeight int64                 `json:"nodeTreeHeight"`
 }
 
 type Merkle struct {
