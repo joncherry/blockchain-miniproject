@@ -19,3 +19,7 @@ This should allow all nodes to stay in sync with each other, if a node falls beh
 ## search indexer and spending
 
 Each block is saved as a single json file. The search indexer records the file and transaction array index of each transaction. It also gives us a map for keyword and user to transaction indexes. This allows us to search by transaction ID, keyword, and user ID. We can calculate a user balance that has already been written as block files because we can search for transactions by user ID. For the balance on incoming blocks or blocks that we are writing, we take the user balance that has been written, and loop over all transactions to update the user balance in a temporary map.
+
+
+## Downloading the difference to catch up after downtime, or downloading to become a new node
+This feature is still not built. There could be a number of problems, such as if blocks can be written to the chain quickly by hitting the maximum really fast, then downloading the chain from another node might be so slow that you can never catch up and rejoin the network.
