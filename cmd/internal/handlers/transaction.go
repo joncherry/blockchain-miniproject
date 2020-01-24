@@ -45,7 +45,7 @@ curl --request POST \
 	}
 }'
 
-reponse:
+response:
 
 {
   "submission": "success"

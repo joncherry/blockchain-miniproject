@@ -1,4 +1,4 @@
-package searchIndexing
+package searchindexing
 
 import (
 	"encoding/json"

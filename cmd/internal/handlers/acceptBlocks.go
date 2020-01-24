@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/joncherry/blockchain-miniproject/cmd/internal/mining"
-	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchIndexing"
 
 	"github.com/joncherry/blockchain-miniproject/cmd/internal/autograph"
 
@@ -226,6 +225,11 @@ func (b *blockAcceptor) validateBlock(resp http.ResponseWriter, blockReq *dto.Bl
 			resp.Write([]byte(fmt.Sprintf(`{"message":"Not enough Coin in user balance", "transaction.ID":"%s"}`, transactionSub.ID)))
 			return
 		}
+
+		// update the balances map with the new amounts
+		// so that we are ready to check the next transaction in this block
+		usersBalances[transactionForNewBlock.Submitted.From] = senderBalance - transactionForNewBlock.Submitted.CoinAmount
+		usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance + transactionForNewBlock.Submitted.CoinAmount
 	}
 
 	return true

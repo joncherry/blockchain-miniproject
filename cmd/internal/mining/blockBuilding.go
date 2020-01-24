@@ -395,7 +395,7 @@ func (b *blockBuilder) getSendOffBlock(block *dto.BlockRequest) *dto.NodeSignatu
 	sendOffBlock := &dto.NodeSignatures{
 		Block: block,
 		Signatures: []*dto.NodeSignature{
-			&dto.NodeSignature{
+			{
 				PublicKey:          string(autograph.PublicKeyToBytes(b.publicKey)),
 				SignedBlockRequest: fmt.Sprintf("%x", signedBlockReq),
 			},
