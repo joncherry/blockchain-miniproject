@@ -8,19 +8,23 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
-	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchIndexing"
+	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchindexing"
 )
 
 type searcher struct {
-	searchIndex *searchIndexing.SearchIndexer
+	searchIndex *searchindexing.SearchIndexer
 }
 
-func NewSearcher(searchIndex *searchIndexing.SearchIndexer) *searcher {
+// NewSearcher returns an instance of the searcher struct for searching via the built search index
+func NewSearcher(searchIndex *searchindexing.SearchIndexer) *searcher {
 	return &searcher{
 		searchIndex: searchIndex,
 	}
 }
 
+// Transaction handles the search transaction endpoint.
+// Transaction searches for transactions in the written-to-file blocks.
+// Transaction searches via the built search index using the transaction ID as the search key.
 func (s *searcher) Transaction(resp http.ResponseWriter, req *http.Request) {
 	searchTerms := mux.Vars(req)
 
@@ -62,6 +66,9 @@ func (s *searcher) Transaction(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(resultBytes)
 }
 
+// Keyword handles the search keyword endpoint.
+// Keyword searches for transactions with the specified value under "key" in the written-to-file blocks.
+// Keyword searches via the built search index using the keyword as the search key.
 func (s *searcher) Keyword(resp http.ResponseWriter, req *http.Request) {
 	searchTerms := mux.Vars(req)
 
@@ -97,6 +104,9 @@ func (s *searcher) Keyword(resp http.ResponseWriter, req *http.Request) {
 	resp.Write(resultBytes)
 }
 
+// User handles the search user endpoint.
+// User searches for transactions with the user public key as the from-user or to-user in the written-to-file blocks.
+// User searches via the built search index using the user public key as the search key.
 func (s *searcher) User(resp http.ResponseWriter, req *http.Request) {
 	searchTerms := mux.Vars(req)
 

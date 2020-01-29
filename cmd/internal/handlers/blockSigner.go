@@ -14,16 +14,19 @@ import (
 	"github.com/joncherry/blockchain-miniproject/cmd/internal/autograph"
 
 	"github.com/joncherry/blockchain-miniproject/cmd/internal/dto"
+
+	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchindexing"
 )
 
 type blockSigner struct {
 	prevBlockHashRunner *mining.PreviousBlockHashRunner
-	searchIndex         *searchIndexing.SearchIndexer
+	searchIndex         *searchindexing.SearchIndexer
 	PrivateKey          *rsa.PrivateKey
 	PublicKey           *rsa.PublicKey
 }
 
-func NewBlockSigner(prevBlockHashRunner *mining.PreviousBlockHashRunner, searchIndex *searchIndexing.SearchIndexer) (*blockSigner, error) {
+// NewBlockSigner returns an instance of the blockSigner struct for handling the block sign endpoint.
+func NewBlockSigner(prevBlockHashRunner *mining.PreviousBlockHashRunner, searchIndex *searchindexing.SearchIndexer) (*blockSigner, error) {
 	privateKey, publicKey, err := autograph.NewSig()
 	if err != nil {
 		return nil, err
@@ -36,6 +39,8 @@ func NewBlockSigner(prevBlockHashRunner *mining.PreviousBlockHashRunner, searchI
 	}, nil
 }
 
+// VerifyAndSign is the handler for the block sign endpoint. VerifyAndSign will add the node signature to the block if it deems the block is valid.
+// To be deemed valid by this node the block must acquire the claim on the previous hash within this node.
 func (b *blockSigner) VerifyAndSign(resp http.ResponseWriter, req *http.Request) {
 	reqBodyBytes, err := ioutil.ReadAll(req.Body)
 	if err != nil {
@@ -177,14 +182,14 @@ func (b *blockSigner) validateBlock(resp http.ResponseWriter, blockReq *dto.Bloc
 			return
 		}
 
-		signedBodyBytes, err := autograph.SignedBodyToBytes(transactionSub.Signed.BodySigned)
+		signedBodyBytes, err := autograph.SignedBodyToBytes(transactionSub.BodySigned)
 		if err != nil {
 			resp.WriteHeader(http.StatusBadRequest)
 			resp.Write([]byte(fmt.Sprintf(`{"message":"could not scan the signedBody into bytes for verification", "transaction.ID":"%s", "error":"%s"}`, transactionSub.ID, err.Error())))
 			return
 		}
 
-		pubKey := autograph.BytesToPublicKey([]byte(transactionSub.Signed.PublicKey))
+		pubKey := autograph.BytesToPublicKey([]byte(transactionSub.Submitted.From))
 
 		err = autograph.Verify(submittedBytes, signedBodyBytes, pubKey)
 		if err != nil {
@@ -235,8 +240,8 @@ func (b *blockSigner) validateBlock(resp http.ResponseWriter, blockReq *dto.Bloc
 
 		// update the balances map with the new amounts
 		// so that we are ready to check the next transaction in this block
-		usersBalances[transactionForNewBlock.Submitted.From] = senderBalance - transactionForNewBlock.Submitted.CoinAmount
-		usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance + transactionForNewBlock.Submitted.CoinAmount
+		usersBalances[transactionSub.Submitted.From] = senderBalance - transactionSub.Submitted.CoinAmount
+		usersBalances[transactionSub.Submitted.To] = receiverBalance + transactionSub.Submitted.CoinAmount
 	}
 
 	return true

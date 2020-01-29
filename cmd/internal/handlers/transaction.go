@@ -33,7 +33,6 @@ curl --request POST \
   --header 'content-type: application/json' \
   --data '{
 	"sign": {
-		"publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIGf...\n-----END RSA PUBLIC KEY-----",
 		"bodySigned": "8a48a..."
 	},
 	"submit": {
@@ -52,6 +51,7 @@ response:
 }
 */
 
+// Transaction is the handler for intaking transaction payloads. Transaction will verify the signature of the from-user and verify the coin is a positive value.
 func (r *transactionRunner) Transaction(resp http.ResponseWriter, req *http.Request) {
 	reqBodyBytes, err := ioutil.ReadAll(req.Body)
 	if err != nil {
@@ -84,14 +84,14 @@ func (r *transactionRunner) Transaction(resp http.ResponseWriter, req *http.Requ
 	}
 
 	// get the signed body as bytes for verifying
-	signedBodyBytes, err := autograph.SignedBodyToBytes(transactionSub.Signed.BodySigned)
+	signedBodyBytes, err := autograph.SignedBodyToBytes(transactionSub.BodySigned)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		resp.Write([]byte(fmt.Sprintf(`{"message":"could not scan the signedBody into bytes for verification", "error":"%s"}`, err.Error())))
 		return
 	}
 
-	pubKey := autograph.BytesToPublicKey([]byte(transactionSub.Signed.PublicKey))
+	pubKey := autograph.BytesToPublicKey([]byte(transactionSub.Submitted.From))
 
 	// verify
 	err = autograph.Verify(submittedBytes, signedBodyBytes, pubKey)

@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/joncherry/blockchain-miniproject/cmd/internal/mining"
-	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchIndexing"
+	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchindexing"
 
 	"github.com/joncherry/blockchain-miniproject/cmd/internal/dto"
 
@@ -21,7 +21,7 @@ func Serve(ctx *cli.Context) error {
 
 	prevBlockHashRunner := mining.NewPrevBlockHashRunner()
 
-	searchIndex := searchIndexing.NewSearchIndexer(ctx.String("blockchain-folder-name"))
+	searchIndex := searchindexing.NewSearchIndexer(ctx.String("blockchain-folder-name"))
 
 	transactionRunner := handlers.NewTransactionRunner(tranChan)
 	signer, err := handlers.NewBlockSigner(prevBlockHashRunner, searchIndex)

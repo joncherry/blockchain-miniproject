@@ -1,5 +1,6 @@
 package dto
 
+// Transaction defines the values and json of the transaction that the from-user signs which creates BodySigned on the TransactionSubmission struct
 type Transaction struct {
 	Key        string  `json:"key"`
 	Value      string  `json:"value"`
@@ -8,18 +9,14 @@ type Transaction struct {
 	CoinAmount float64 `json:"coinAmount"`
 }
 
-type TransactionSignature struct {
-	PublicKey  string `json:"publicKey"`
-	BodySigned string `json:"bodySigned"`
-}
-
+// TransactionSubmission defines the values and json of a transaction payload
 type TransactionSubmission struct {
-	ID                string                `json:"id"`
-	Timestamp         string                `json:"timestamp"`
-	TransactionStatus string                `json:"transactionStatus"`
-	DroppedReason     string                `json:"droppedReason"`
-	Signed            *TransactionSignature `json:"sign"`
-	Submitted         *Transaction          `json:"submit"`
+	ID                string       `json:"id"`
+	Timestamp         string       `json:"timestamp"`
+	TransactionStatus string       `json:"transactionStatus"`
+	DroppedReason     string       `json:"droppedReason"`
+	BodySigned        string       `json:"bodySigned"`
+	Submitted         *Transaction `json:"submit"`
 }
 
 const (
@@ -32,10 +29,7 @@ const (
 /*
 example request body
 {
-	"sign": {
-		"publicKey":"testPublicKeySender",
-		"bodySigned": "signedResult"
-	},
+	"bodySigned": "signedResult"
 	"submit": {
 		"id":"randomstr",
 		"key":"searchkey",

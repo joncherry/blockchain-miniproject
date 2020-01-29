@@ -17,9 +17,10 @@ import (
 
 	"github.com/joncherry/blockchain-miniproject/cmd/internal/autograph"
 	"github.com/joncherry/blockchain-miniproject/cmd/internal/dto"
-	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchIndexing"
+	"github.com/joncherry/blockchain-miniproject/cmd/internal/searchindexing"
 )
 
+// PreviousBlockHashRunner is the struct that governs the claims on the previous hash with a mutex lock
 type PreviousBlockHashRunner struct {
 	mx             *sync.Mutex
 	prevHashString string
@@ -28,6 +29,7 @@ type PreviousBlockHashRunner struct {
 	blockIDHash    string
 }
 
+// NewPrevBlockHashRunner returns an empty instance of the PreviousBlockHashRunner struct.
 func NewPrevBlockHashRunner() *PreviousBlockHashRunner {
 	return &PreviousBlockHashRunner{
 		mx:             &sync.Mutex{},
@@ -38,6 +40,7 @@ func NewPrevBlockHashRunner() *PreviousBlockHashRunner {
 	}
 }
 
+// GetPrevBlockHash will use the mutex lock to return the current previous block hash.
 func (r *PreviousBlockHashRunner) GetPrevBlockHash() string {
 	r.mx.Lock()
 	defer r.mx.Unlock()
@@ -138,7 +141,7 @@ type blockBuilder struct {
 	transactionsWaiting  chan []*dto.TransactionSubmission
 	writeChan            chan *dto.BlockRequest
 	prevBlockHashRunner  *PreviousBlockHashRunner
-	searchIndex          *searchIndexing.SearchIndexer
+	searchIndex          *searchindexing.SearchIndexer
 	maxTransactions      int64
 	timeLimitInMinutes   int64
 	BlockChainOutputPath string
@@ -146,9 +149,10 @@ type blockBuilder struct {
 	publicKey            *rsa.PublicKey
 }
 
+// NewBlockBuilder returns a new instance of the blockBuilder struct with the given arguments.
 func NewBlockBuilder(
 	prevBlockHashRunner *PreviousBlockHashRunner,
-	searchIndex *searchIndexing.SearchIndexer,
+	searchIndex *searchindexing.SearchIndexer,
 	writeChan chan *dto.BlockRequest,
 	maxTransactions,
 	timeLimit int64,
@@ -171,6 +175,7 @@ func NewBlockBuilder(
 	}
 }
 
+// BlockTimer sends a signal on the timerChan when the TIME_LIMIT environment variable minutes have elapsed. The timer is reset every time we receive max transactions for a block.
 func (b *blockBuilder) BlockTimer() {
 	countDownTimer := b.timeLimitInMinutes * 60
 	timer := time.Tick(time.Second)
@@ -188,6 +193,7 @@ func (b *blockBuilder) BlockTimer() {
 	}
 }
 
+// BuildNewTransactionsList uses the signal from the timerChan and the MAX_TRANSACTIONS environment variable to group transactions into batches. Each batch will be added to 1 future block or be dropped.
 func (b *blockBuilder) BuildNewTransactionsList(tranChan <-chan *dto.TransactionSubmission) {
 	blockTransactions := make([]*dto.TransactionSubmission, 0)
 	for {
@@ -211,57 +217,18 @@ func (b *blockBuilder) BuildNewTransactionsList(tranChan <-chan *dto.Transaction
 	}
 }
 
+// CreateNewBlocks is the bulk of the node's job because it handles the block mining.
+// CreateNewBlocks Will verify there are no negative balances on its list of transactions,
+// create a header for the block, find proof of work for that header, and then claim the previous block hash if available.
+// CreateNewBlocks will create a header and find proof of work up to 10 times if it can not claim the previous block hash.
+// If CreateNewBlocks never succeeds at claiming the previous block hash, the block will be written locally as a dropped block with dropped transactions.
 func (b *blockBuilder) CreateNewBlocks() {
 	transactionsWaitingLoopCount := 0
-	var err error
 
 TransactionsWaitingLoop:
 	for blockTransactions := range b.transactionsWaiting {
-		// check for negative ballance of new transactions
-		usersBalances := make(map[string]float64)
-
-		for _, transactionForNewBlock := range blockTransactions {
-			if transactionForNewBlock.Submitted.CoinAmount < 0 {
-				// we should never reach this point
-				transactionForNewBlock.TransactionStatus = dto.StatusDropped
-				transactionForNewBlock.DroppedReason = "CoinAmount is negative"
-				continue
-			}
-
-			senderBalance, foundSenderBalance := usersBalances[transactionForNewBlock.Submitted.From]
-			if !foundSenderBalance {
-				senderBalance, err = b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.From)
-				if err != nil {
-					transactionForNewBlock.TransactionStatus = dto.StatusDropped
-					transactionForNewBlock.DroppedReason = err.Error()
-					continue
-				}
-				usersBalances[transactionForNewBlock.Submitted.From] = senderBalance
-			}
-
-			// the receiver might be the sender on following transactions
-			receiverBalance, foundReceiverBalance := usersBalances[transactionForNewBlock.Submitted.To]
-			if !foundReceiverBalance {
-				receiverBalance, err = b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.To)
-				if err != nil {
-					transactionForNewBlock.TransactionStatus = dto.StatusDropped
-					transactionForNewBlock.DroppedReason = err.Error()
-					continue
-				}
-				usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance
-			}
-
-			if senderBalance-transactionForNewBlock.Submitted.CoinAmount < 0 {
-				transactionForNewBlock.TransactionStatus = dto.StatusDropped
-				transactionForNewBlock.DroppedReason = "Not enough Coin in user balance"
-				continue
-			}
-
-			// update the balances map with the new amounts
-			// so that we are ready to check the next transaction in this block
-			usersBalances[transactionForNewBlock.Submitted.From] = senderBalance - transactionForNewBlock.Submitted.CoinAmount
-			usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance + transactionForNewBlock.Submitted.CoinAmount
-		}
+		// if a transaction sets a user ballance to negative, mark transaction as dropped
+		b.verifySpendIsAllowed(blockTransactions)
 
 		// TODO: add last transaction with self award for mining.
 		// Should also verify other nodes are not awarding themselves too much.
@@ -327,24 +294,75 @@ TransactionsWaitingLoop:
 	}
 }
 
+func (b *blockBuilder) verifySpendIsAllowed(blockTransactions []*dto.TransactionSubmission) {
+	// check for negative ballance of new transactions
+	usersBalances := make(map[string]float64)
+
+	for _, transactionForNewBlock := range blockTransactions {
+		if transactionForNewBlock.Submitted.CoinAmount < 0 {
+			// we should never reach this point because we check this on the transaction handler
+			transactionForNewBlock.TransactionStatus = dto.StatusDropped
+			transactionForNewBlock.DroppedReason = "CoinAmount is negative"
+			continue
+		}
+
+		senderBalance, foundSenderBalance := usersBalances[transactionForNewBlock.Submitted.From]
+		if !foundSenderBalance {
+			senderBalance, err := b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.From)
+			if err != nil {
+				transactionForNewBlock.TransactionStatus = dto.StatusDropped
+				transactionForNewBlock.DroppedReason = err.Error()
+				continue
+			}
+			usersBalances[transactionForNewBlock.Submitted.From] = senderBalance
+		}
+
+		// the receiver might be the sender on following transactions
+		receiverBalance, foundReceiverBalance := usersBalances[transactionForNewBlock.Submitted.To]
+		if !foundReceiverBalance {
+			receiverBalance, err := b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.To)
+			if err != nil {
+				transactionForNewBlock.TransactionStatus = dto.StatusDropped
+				transactionForNewBlock.DroppedReason = err.Error()
+				continue
+			}
+			usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance
+		}
+
+		if senderBalance-transactionForNewBlock.Submitted.CoinAmount < 0 {
+			transactionForNewBlock.TransactionStatus = dto.StatusDropped
+			transactionForNewBlock.DroppedReason = "Not enough Coin in user balance"
+			continue
+		}
+
+		// update the balances map with the new amounts
+		// so that we are ready to check the next transaction in this block
+		usersBalances[transactionForNewBlock.Submitted.From] = senderBalance - transactionForNewBlock.Submitted.CoinAmount
+		usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance + transactionForNewBlock.Submitted.CoinAmount
+	}
+}
+
+// mark the block and transactions as dropped before writing the block to a file
 func (b *blockBuilder) writeDroppedBlock(blockTransactions []*dto.TransactionSubmission) {
 	for _, droppedTransaction := range blockTransactions {
 		droppedTransaction.TransactionStatus = dto.StatusDropped
 		droppedTransaction.DroppedReason = "exceeded retries and dropped block"
 	}
 
-	blockTransactionsBytes, err := json.Marshal(blockTransactions)
-	if err != nil {
-		log.Fatalln("can't marshal the transactions to create a hash! it's the end of the worrrlllldd!!!! aaaaaaaahhhhhhhhh!!!!", err.Error())
-		return
-	}
+	// not needed if we aren't going to hash the transactions
+	// blockTransactionsBytes, err := json.Marshal(blockTransactions)
+	// if err != nil {
+	// 	log.Fatalln("can't marshal the transactions to create a hash! it's the end of the worrrlllldd!!!! aaaaaaaahhhhhhhhh!!!!", err.Error())
+	// 	return
+	// }
 
-	transactionsHash := fmt.Sprintf("%x", sha256.Sum256(blockTransactionsBytes))
+	// don't really need this since they are just getting dropped to the nodes local file system
+	// transactionsHash := fmt.Sprintf("%x", sha256.Sum256(blockTransactionsBytes))
 
 	blockHeader := &dto.BlockHeader{
-		PrevBlockHash:    "scrubbed",
-		TransactionsHash: transactionsHash,
-		Time:             strconv.FormatInt(time.Now().Unix(), 10),
+		PrevBlockHash: "scrubbed",
+		// TransactionsHash: transactionsHash,
+		Time: strconv.FormatInt(time.Now().Unix(), 10),
 	}
 
 	block := &dto.BlockRequest{
@@ -357,6 +375,7 @@ func (b *blockBuilder) writeDroppedBlock(blockTransactions []*dto.TransactionSub
 	b.writeChan <- block
 }
 
+// find a hash of the block header that has enough leading 0's
 func (b *blockBuilder) getProofOfWork(blockHeader *dto.BlockHeader) string {
 	rand.Seed(time.Now().Unix())
 	nonceCount := 100 + rand.Int63()
@@ -379,6 +398,7 @@ func (b *blockBuilder) getProofOfWork(blockHeader *dto.BlockHeader) string {
 	}
 }
 
+// Sign the block and send it off to the other nodes for signing and adding to the block chain
 func (b *blockBuilder) getSendOffBlock(block *dto.BlockRequest) *dto.NodeSignatures {
 	blockBytes, err := json.Marshal(block)
 	if err != nil {
@@ -404,6 +424,10 @@ func (b *blockBuilder) getSendOffBlock(block *dto.BlockRequest) *dto.NodeSignatu
 	return sendOffBlock
 }
 
+// WriteBlocks receives accepted and dropped blocks on writeChan,
+// verifies the block header has previous hash as the hash of the last written block,
+// updates the search index, and finally writes the block to a file.
+// The file name for the block is the hash of the block plus the number of the blocks written to file including that block.
 func (b *blockBuilder) WriteBlocks() {
 	blocksReceived := 0
 	previousBlockHash := ""
