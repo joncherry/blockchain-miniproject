@@ -82,10 +82,7 @@ curl --request POST \
   --url http://127.0.0.1:8080/transaction \
   --header 'content-type: application/json' \
   --data '{
-	"sign": {
-		"publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----",
-		"bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93"
-	},
+	"bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93",
 	"submit": {
 		"key": "searchkey",
 		"value": "anything",
@@ -116,10 +113,7 @@ curl --request POST \
     "timestamp": "1578530533",
     "transactionStatus": "dropped",
     "droppedReason": "exceeded retries and dropped block",
-    "sign": {
-      "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----",
-      "bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93"
-    },
+    "bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93",
     "submit": {
       "key": "searchkey",
       "value": "anything",
@@ -134,10 +128,7 @@ curl --request POST \
     "timestamp": "1578530537",
     "transactionStatus": "dropped",
     "droppedReason": "exceeded retries and dropped block",
-    "sign": {
-      "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----",
-      "bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93"
-    },
+    "bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93",
     "submit": {
       "key": "searchkey",
       "value": "anything",
@@ -161,10 +152,7 @@ curl --request POST \
     "timestamp": "1578531510",
     "transactionStatus": "dropped",
     "droppedReason": "exceeded retries and dropped block",
-    "sign": {
-      "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----",
-      "bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93"
-    },
+    "bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93",
     "submit": {
       "key": "searchkey",
       "value": "anything",
@@ -179,10 +167,7 @@ curl --request POST \
     "timestamp": "1578531514",
     "transactionStatus": "dropped",
     "droppedReason": "exceeded retries and dropped block",
-    "sign": {
-      "publicKey": "-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----",
-      "bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93"
-    },
+    "bodySigned": "a08175ff941277d0675fbd89bf56909659272274ca452646412e66ad80076c3a07b54893e08c54b1069a82133f9432ba1b0a9c5eac1b350b22d039de2e673daafc02a91782eb27c674429999f5109ae117cb4dfcc7275af8270d1c51ac0241104e7579ba0b1b6800e611cd53c6cc278165764290ad67a6a906a3d4776f5f6f93",
     "submit": {
       "key": "searchkey",
       "value": "anything",
