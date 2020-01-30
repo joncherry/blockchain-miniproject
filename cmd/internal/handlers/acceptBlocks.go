@@ -164,9 +164,6 @@ func (b *blockAcceptor) validateBlock(resp http.ResponseWriter, blockReq *dto.Bl
 		return
 	}
 
-	// check for negative ballance of new transactions
-	usersBalances := make(map[string]float64)
-
 	for _, transactionSub := range blockReq.Transactions {
 		submittedBytes, err := json.Marshal(transactionSub.Submitted)
 		if err != nil {
@@ -201,7 +198,17 @@ func (b *blockAcceptor) validateBlock(resp http.ResponseWriter, blockReq *dto.Bl
 			resp.Write([]byte(fmt.Sprintf(`{"message":"transaction has negative coin", "transaction.ID":"%s"}`, transactionSub.ID)))
 			return
 		}
+	}
 
+	return true
+}
+
+func (b *blockAcceptor) validateUsersHaveEnoughCoin(resp http.ResponseWriter, blockReq *dto.BlockRequest) (success bool) {
+	// check for negative ballance of new transactions
+	usersBalances := make(map[string]float64)
+	var err error
+
+	for _, transactionSub := range blockReq.Transactions {
 		senderBalance, foundSenderBalance := usersBalances[transactionSub.Submitted.From]
 		if !foundSenderBalance {
 			senderBalance, err = b.searchIndex.GetWrittenUserBalance(transactionSub.Submitted.From)
@@ -236,6 +243,11 @@ func (b *blockAcceptor) validateBlock(resp http.ResponseWriter, blockReq *dto.Bl
 		// so that we are ready to check the next transaction in this block
 		usersBalances[transactionSub.Submitted.From] = senderBalance - transactionSub.Submitted.CoinAmount
 		usersBalances[transactionSub.Submitted.To] = receiverBalance + transactionSub.Submitted.CoinAmount
+	}
+
+	hasEnough := b.validateUsersHaveEnoughCoin(resp, blockReq)
+	if !hasEnough {
+		return
 	}
 
 	return true
