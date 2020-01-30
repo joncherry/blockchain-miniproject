@@ -50,11 +50,11 @@ example requests:
 Sign the transaction for the payload to `/transaction` by running 
 ```
 go run ./testsignature/main.go -body "{
-                "key": "searchkey",
-                "value": "anything",
-                "from": "-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----",
-                "to": "testPublicKeyRecipient",
-                "coinAmount": 0.03
+                \"key\": \"searchkey\",
+                \"value\": \"anything\",
+                \"from\": \"-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----\",
+                \"to\": \"testPublicKeyRecipient\",
+                \"coinAmount\": 0.03
         }"
 ```
 
@@ -68,11 +68,11 @@ fNCmltr+VfOpd8nqWQIDAQAB
 -----END RSA PUBLIC KEY-----" --private-key "-----BEGIN RSA PRIVATE KEY-----
 u8sf8888testCharatersForPrivateKey8888suhs7s
 -----END RSA PRIVATE KEY-----" --body "{
-                "key": "searchkey2",
-                "value": "anythingNext",
-                "from": "-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----",
-                "to": "testPublicKeyOtherRecipient",
-                "coinAmount": 0.09
+                \"key\": \"searchkey2\",
+                \"value\": \"anythingNext\",
+                \"from\": \"-----BEGIN RSA PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC3K0atfOfjuF0Jh/b5S45D4N5U\nhGZy8OT60Q5PDcwvqwKVslFZlBXiTDCFOoAjoO4nzcdGk6DX0p8k+g9id9aDAIB4\nTUSgEkauMo1lCAg3DAhPGcG2Ed0xLJ22sPoDYSEHpXKwqa8fydJwBS41oUMsDl9U\nK/Mv89c9vsyf+oj5lwIDAQAB\n-----END RSA PUBLIC KEY-----\",
+                \"to\": \"testPublicKeyOtherRecipient\",
+                \"coinAmount\": 0.09
         }"
 ```
 

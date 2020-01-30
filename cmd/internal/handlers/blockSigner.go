@@ -213,9 +213,12 @@ func (b *blockSigner) validateBlock(resp http.ResponseWriter, blockReq *dto.Bloc
 		if !foundSenderBalance {
 			senderBalance, err = b.searchIndex.GetWrittenUserBalance(transactionSub.Submitted.From)
 			if err != nil {
-				resp.WriteHeader(http.StatusUnauthorized)
-				resp.Write([]byte(fmt.Sprintf(`{"message":"Could not get the From-User balance from the written blocks", "transaction.ID":"%s", "error":"%s"}`, transactionSub.ID, err.Error())))
-				return
+				if transactionSub.Submitted.CoinAmount != 0 {
+					resp.WriteHeader(http.StatusUnauthorized)
+					resp.Write([]byte(fmt.Sprintf(`{"message":"Could not get the From-User balance from the written blocks", "transaction.ID":"%s", "error":"%s"}`, transactionSub.ID, err.Error())))
+					return
+				}
+				senderBalance = 0
 			}
 			usersBalances[transactionSub.Submitted.From] = senderBalance
 		}
@@ -225,9 +228,7 @@ func (b *blockSigner) validateBlock(resp http.ResponseWriter, blockReq *dto.Bloc
 		if !foundReceiverBalance {
 			receiverBalance, err = b.searchIndex.GetWrittenUserBalance(transactionSub.Submitted.To)
 			if err != nil {
-				resp.WriteHeader(http.StatusUnauthorized)
-				resp.Write([]byte(fmt.Sprintf(`{"message":"Could not get the From-User balance from the written blocks", "transaction.ID":"%s", "error":"%s"}`, transactionSub.ID, err.Error())))
-				return
+				receiverBalance = 0
 			}
 			usersBalances[transactionSub.Submitted.To] = receiverBalance
 		}

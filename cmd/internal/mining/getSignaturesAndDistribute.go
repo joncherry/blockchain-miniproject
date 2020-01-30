@@ -12,24 +12,23 @@ import (
 )
 
 // this whole function (EDIT: is now functions) is yucky to read. I hate it.
-func getSignaturesAndDistrubute(signBlock *dto.NodeSignatures) error {
+func (b *blockBuilder) getSignaturesAndDistrubute(signBlock *dto.NodeSignatures) error {
 	// just do stuff for running locally for now
 
-	// TBD. Can't get them to talk to each other from the terminal yet.
 	localHostPorts := []string{":8080", ":8081", ":8082", ":8083", ":8084", ":8085", ":8086"}
-	// activeLocalHostPorts := make([]string, 0)
+	activeLocalHostPorts := make([]string, 0)
 
-	// for _, port := range localHostPorts {
-	// 	url := fmt.Sprintf("http://127.0.0.1%s/healthcheck", port)
-	// 	_, err := http.Get(url)
-	// 	if err == nil {
-	// 		continue
-	// 	}
+	for _, port := range localHostPorts {
+		url := fmt.Sprintf("http://127.0.0.1%s/healthcheck", port)
+		_, err := http.Get(url)
+		if err != nil {
+			continue
+		}
 
-	// 	activeLocalHostPorts = append(activeLocalHostPorts, port)
-	// }
+		activeLocalHostPorts = append(activeLocalHostPorts, port)
+	}
 
-	accumulateSignatures, err := getSignatures(localHostPorts, signBlock)
+	accumulateSignatures, err := b.getSignatures(activeLocalHostPorts, signBlock)
 	if err != nil {
 		return err
 	}
@@ -39,7 +38,7 @@ func getSignaturesAndDistrubute(signBlock *dto.NodeSignatures) error {
 
 	signBlock.Signatures = append(signBlock.Signatures, accumulateSignatures...)
 
-	err = distribute(localHostPorts, signBlock)
+	err = b.distribute(activeLocalHostPorts, signBlock)
 	if err != nil {
 		return err
 	}
@@ -47,13 +46,17 @@ func getSignaturesAndDistrubute(signBlock *dto.NodeSignatures) error {
 	return nil
 }
 
-func getSignatures(localHostPorts []string, signBlock *dto.NodeSignatures) ([]*dto.NodeSignature, error) {
+func (b *blockBuilder) getSignatures(localHostPorts []string, signBlock *dto.NodeSignatures) ([]*dto.NodeSignature, error) {
 	// get signatures
 	accumulateSignatures := make([]*dto.NodeSignature, 0)
 	countRejected := 0
 	var lastFoundResponseErr error
 
 	for _, port := range localHostPorts {
+		if port == b.myLocalHostPort {
+			// don't send to selfnode
+			continue
+		}
 		signBlockBytes, err := json.Marshal(signBlock)
 		if err != nil {
 			log.Println("could not marshal request for signing", err)
@@ -101,18 +104,22 @@ func getSignatures(localHostPorts []string, signBlock *dto.NodeSignatures) ([]*d
 		accumulateSignatures = append(accumulateSignatures, newlySignedBlock.Signatures[1])
 	}
 
-	if countRejected*100/len(localHostPorts) != 100 {
+	if countRejected*100/len(localHostPorts) != 0 {
 		return nil, lastFoundResponseErr
 	}
 
 	return accumulateSignatures, nil
 }
 
-func distribute(localHostPorts []string, signBlock *dto.NodeSignatures) error {
+func (b *blockBuilder) distribute(localHostPorts []string, signBlock *dto.NodeSignatures) error {
 	// get % accepted. countReject * 100 / countSent
 	countRejected := 0
 	var lastFoundResponseErr error
 	for _, port := range localHostPorts {
+		if port == b.myLocalHostPort {
+			// don't send to selfnode
+			continue
+		}
 		signBlockBytes, err := json.Marshal(signBlock)
 		if err != nil {
 			log.Println("not sent to node", port, err.Error())
@@ -151,7 +158,7 @@ func distribute(localHostPorts []string, signBlock *dto.NodeSignatures) error {
 	// and then you can auto reject to sign or accept blocks. Now none of the nodes can build onto the blockchain.
 	// you could decide to only reject when the nodes are not yours, but you still have to get verified by 70% to write a block.
 	// so it is easier to attack with a halt than to write bad blocks
-	if countRejected*100/len(localHostPorts) != 100 {
+	if countRejected*100/len(localHostPorts) != 0 {
 		return lastFoundResponseErr
 	}
 

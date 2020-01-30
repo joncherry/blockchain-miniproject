@@ -6,10 +6,20 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
 )
+
+// Transaction defines the values and json of the transaction that the from-user signs which creates BodySigned on the TransactionSubmission struct
+type Transaction struct {
+	Key        string  `json:"key"`
+	Value      string  `json:"value"`
+	From       string  `json:"from"`
+	To         string  `json:"to"`
+	CoinAmount float64 `json:"coinAmount"`
+}
 
 func main() {
 	rng := rand.Reader
@@ -33,6 +43,19 @@ func main() {
 		return
 	}
 
+	unmarshalBody := &Transaction{}
+	err = json.Unmarshal([]byte(body), unmarshalBody)
+	if err != nil {
+		fmt.Println("error json unmarshalling the body for formatting", err)
+		return
+	}
+
+	formattedBody, err := json.Marshal(unmarshalBody)
+	if err != nil {
+		fmt.Println("error json marshalling the body for formatting", err)
+		return
+	}
+
 	if privateKeyStr == "" || publicKeyStr == "" {
 		privateKey, err = rsa.GenerateKey(rng, 1024)
 		if err != nil {
@@ -52,7 +75,7 @@ func main() {
 
 	hash := sha256.New()
 
-	hash.Write([]byte(body))
+	hash.Write(formattedBody)
 
 	hashed := hash.Sum(nil)
 

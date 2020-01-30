@@ -76,6 +76,8 @@ func Serve(ctx *cli.Context) error {
 			blockBuilder.BlockChainOutputPath = blockBuilder.BlockChainOutputPath + port[1:]
 			searchIndex.BlockChainOutputPath = searchIndex.BlockChainOutputPath + port[1:]
 
+			blockBuilder.SetMyLocalHostPort(port)
+
 			fmt.Println("listening on localhost port", port)
 			http.ListenAndServe(port, nil)
 			break

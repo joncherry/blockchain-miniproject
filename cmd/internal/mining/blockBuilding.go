@@ -138,6 +138,7 @@ func (r *PreviousBlockHashRunner) setPrevBlockHashAsUnclaimedFromSignRequest(pub
 type blockBuilder struct {
 	timerChan            chan struct{}
 	resetTimerChan       chan struct{}
+	myLocalHostPort      string
 	transactionsWaiting  chan []*dto.TransactionSubmission
 	writeChan            chan *dto.BlockRequest
 	prevBlockHashRunner  *PreviousBlockHashRunner
@@ -173,6 +174,11 @@ func NewBlockBuilder(
 		privateKey:           privateKey,
 		publicKey:            publicKey,
 	}
+}
+
+// SetMyLocalHostPort sets the port number as string when running locally so that this node won't distribute its own block to itself
+func (b *blockBuilder) SetMyLocalHostPort(portStr string) {
+	b.myLocalHostPort = portStr
 }
 
 // BlockTimer sends a signal on the timerChan when the TIME_LIMIT environment variable minutes have elapsed. The timer is reset every time we receive max transactions for a block.
@@ -270,9 +276,9 @@ TransactionsWaitingLoop:
 			// time.Sleep(20 * time.Second)
 
 			// send out the block with the proof of work we found in hopes that we can claim the previous hash on other nodes quickly enough
-			err = getSignaturesAndDistrubute(sendOffBlock)
+			err = b.getSignaturesAndDistrubute(sendOffBlock)
 			if err != nil {
-				log.Println("retrying because not a single node accepted, last response:", err.Error())
+				log.Println("retrying because not every node accepted, last response:", err.Error())
 				// Not enough other nodes thought that I found Proof of Work first so try again
 				b.prevBlockHashRunner.setPrevBlockHashAsUnclaimed(string(autograph.PublicKeyToBytes(b.publicKey)), sendOffBlock.Block.ProofOfWorkHash)
 				continue
@@ -284,7 +290,7 @@ TransactionsWaitingLoop:
 			// if the other nodes agreed that I found proof of work first write the block to the chain
 			// and release the claim so that I accept blocks from other nodes again
 			b.writeChan <- sendOffBlock.Block
-			break TransactionsWaitingLoop
+			continue TransactionsWaitingLoop
 		}
 
 		// write dropped block if we fail all retries
@@ -310,9 +316,13 @@ func (b *blockBuilder) verifySpendIsAllowed(blockTransactions []*dto.Transaction
 		if !foundSenderBalance {
 			senderBalance, err := b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.From)
 			if err != nil {
-				transactionForNewBlock.TransactionStatus = dto.StatusDropped
-				transactionForNewBlock.DroppedReason = err.Error()
-				continue
+				if transactionForNewBlock.Submitted.CoinAmount != 0 {
+					transactionForNewBlock.TransactionStatus = dto.StatusDropped
+					transactionForNewBlock.DroppedReason = err.Error()
+					continue
+				} else {
+					senderBalance = 0
+				}
 			}
 			usersBalances[transactionForNewBlock.Submitted.From] = senderBalance
 		}
@@ -322,9 +332,7 @@ func (b *blockBuilder) verifySpendIsAllowed(blockTransactions []*dto.Transaction
 		if !foundReceiverBalance {
 			receiverBalance, err := b.searchIndex.GetWrittenUserBalance(transactionForNewBlock.Submitted.To)
 			if err != nil {
-				transactionForNewBlock.TransactionStatus = dto.StatusDropped
-				transactionForNewBlock.DroppedReason = err.Error()
-				continue
+				receiverBalance = 0
 			}
 			usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance
 		}
@@ -339,6 +347,7 @@ func (b *blockBuilder) verifySpendIsAllowed(blockTransactions []*dto.Transaction
 		// so that we are ready to check the next transaction in this block
 		usersBalances[transactionForNewBlock.Submitted.From] = senderBalance - transactionForNewBlock.Submitted.CoinAmount
 		usersBalances[transactionForNewBlock.Submitted.To] = receiverBalance + transactionForNewBlock.Submitted.CoinAmount
+		transactionForNewBlock.TransactionStatus = "accepted"
 	}
 }
 
