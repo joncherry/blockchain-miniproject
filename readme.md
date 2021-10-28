@@ -11,7 +11,7 @@ This project should:
 - Allow code execution or smart contracts like ethereum
 - Perhaps add an endpoint for sharing a "contacts list" with an expiration time for each entry so that the nodes can a agree on which nodes constitute 100% of the network (this will help to enforce the notion of 70% consensus)
 - Perhaps make a Gen 2 project that is not a miniproject submission so that a feature can be using POS instead of POW. Perhaps some form of hybrid between the two?
-- Endpoint for downloading the full chain so a node join the network for the first time or a partial chain to join after downtime.
+- Endpoint for downloading the full chain so a node can join the network for the first time or a partial chain to join after downtime.
 
 ## Run Locally
 
