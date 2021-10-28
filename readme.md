@@ -6,7 +6,7 @@ This project should:
 2. Teach me more about the design structure of other existing blockchains, and help me to form a fuller visualization in my head.
 3. Help me to invent ideas on how to solve blockchain design structure problems.
 
-# Features Still needed
+# Features Still Needed
 - Award coin to node that wins
 - Allow code execution or smart contracts like ethereum
 - Perhaps add an endpoint for sharing a "contacts list" with an expiration time for each entry so that the nodes can a agree on which nodes constitute 100% of the network (this will help to enforce the notion of 70% consensus)
