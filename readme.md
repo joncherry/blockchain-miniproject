@@ -6,6 +6,12 @@ This project should:
 2. Teach me more about the design structure of other existing blockchains, and help me to form a fuller visualization in my head.
 3. Help me to invent ideas on how to solve blockchain design structure problems.
 
+# Features Still needed
+- Award coin to node that wins
+- Allow code execution or smart contracts like ethereum
+- Perhaps add an endpoint for sharing a "contacts list" with an expiration time for each entry so that the nodes can a agree on which nodes constitute 100% of the network (this will help to enforce the notion of 70% consensus)
+- Perhaps make a Gen 2 project that is not a miniproject submission so that a feature can be using POS instead of POW. Perhaps some form of hybrid between the two?
+
 ## Run Locally
 
 Run locally on up to 7 terminal tabs or screens using `./runlocal.sh`.
